@@ -182,6 +182,12 @@
       background-size: cover; background-position: center;
       transition: transform 0.8s ease;
     }
+    #paint-drops {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
     .hero__photo::after {
       content: '';
       position: absolute; inset: 0;
@@ -928,6 +934,7 @@
 <!-- HERO -->
 <section class="hero" id="hero">
   <div class="hero__photo" id="hero-photo"></div>
+  <canvas id="paint-drops"></canvas>
   <div class="hero__content">
     <span class="hero__label">Pretoria North &mdash; Gauteng</span>
     <h1 class="hero__headline">Your Home Deserves<br>to Look Its <em>Best.</em></h1>
@@ -1527,6 +1534,148 @@
         photo.style.transform = 'translateY(' + (scroll * 0.3) + 'px)';
       }
     });
+  })();
+
+  /* ── PAINT DROP ANIMATION ── */
+  (function() {
+    var canvas = document.getElementById('paint-drops');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var drops = [];
+    var running = true;
+    var W, H;
+
+    var COLORS = [
+      'rgba(184, 92, 56, 0.55)',   // terracotta
+      'rgba(45, 90, 71, 0.50)',    // forest green
+      'rgba(201, 150, 60, 0.50)',  // gold
+      'rgba(250, 247, 242, 0.30)', // cream
+      'rgba(184, 92, 56, 0.35)',   // terracotta light
+    ];
+
+    function resize() {
+      var hero = document.getElementById('hero');
+      if (!hero) return;
+      W = canvas.width = hero.offsetWidth;
+      H = canvas.height = hero.offsetHeight;
+    }
+
+    function randomBetween(a, b) {
+      return a + Math.random() * (b - a);
+    }
+
+    // Teardrop shape — drawn as a path
+    function drawDrop(x, y, r, color, stretch) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(1, stretch || 1);
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 1.6);
+      ctx.bezierCurveTo(r * 0.9, -r * 1.6, r * 1.2, 0, 0, r * 0.6);
+      ctx.bezierCurveTo(-r * 1.2, 0, -r * 0.9, -r * 1.6, 0, -r * 1.6);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      // subtle highlight
+      ctx.beginPath();
+      ctx.arc(r * -0.25, -r * 0.6, r * 0.22, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function spawnSplash(x, maxR, color) {
+      var particles = Math.floor(randomBetween(4, 8));
+      for (var i = 0; i < particles; i++) {
+        var angle = randomBetween(-Math.PI, 0) + (Math.random() > 0.5 ? 0 : Math.PI);
+        var speed = randomBetween(1, 4);
+        drops.push({
+          x: x,
+          y: H - 10,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed * -1,
+          r: randomBetween(1.5, 4),
+          color: color,
+          life: 1,
+          decay: randomBetween(0.025, 0.05),
+          gravity: 0.12,
+          splash: true,
+          stretch: 1
+        });
+      }
+    }
+
+    function spawnDrop() {
+      var color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      drops.push({
+        x: randomBetween(W * 0.05, W * 0.95),
+        y: randomBetween(-H * 0.8, -20),
+        vx: randomBetween(-0.3, 0.3),
+        vy: randomBetween(1.5, 3.5),
+        r: randomBetween(4, 10),
+        color: color,
+        life: 1,
+        decay: 0,
+        gravity: 0.04,
+        splash: false,
+        stretch: 1
+      });
+    }
+
+    function animate() {
+      if (!running) return;
+      ctx.clearRect(0, 0, W, H);
+
+      // spawn new drops occasionally
+      if (Math.random() < 0.04) spawnDrop();
+
+      for (var i = drops.length - 1; i >= 0; i--) {
+        var d = drops[i];
+
+        if (!d.splash) {
+          // Gravity accelerates falling drops (stretch as they fall)
+          d.vy += d.gravity;
+          d.x += d.vx;
+          d.y += d.vy;
+          // Elongate in direction of travel
+          d.stretch = Math.min(2.2, 1 + d.vy * 0.08);
+
+          if (d.y > H - 8) {
+            // Splash on impact
+            spawnSplash(d.x, d.r, d.color);
+            drops.splice(i, 1);
+            continue;
+          }
+        } else {
+          // Splash particle
+          d.vy += d.gravity * 1.5;
+          d.x += d.vx;
+          d.y += d.vy;
+          d.life -= d.decay;
+          d.stretch = 1 + Math.abs(d.vy) * 0.05;
+          if (d.life <= 0 || d.y > H + 20) {
+            drops.splice(i, 1);
+            continue;
+          }
+          ctx.globalAlpha = d.life;
+        }
+
+        drawDrop(d.x, d.y, d.r, d.color, d.stretch);
+        ctx.globalAlpha = 1;
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Initial burst
+    for (var k = 0; k < 6; k++) {
+      setTimeout(spawnDrop, k * 180);
+    }
+
+    animate();
   })();
 </script>
 </body>
